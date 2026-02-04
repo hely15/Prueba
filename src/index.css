@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #050511; /* Very dark, almost black */
+  --bg-secondary: #0f0c29;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(189, 0, 255, 0.2); /* Purple tint on borders */
+  --accent-purple: #bd00ff;
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  /* Background gradient for depth */
+  background: radial-gradient(circle at 50% 0%, #1a0b2e 0%, #050511 60%);
+  min-height: 100vh;
+}
+
+@layer components {
+  .glass-panel {
+    @apply backdrop-blur-xl bg-white/5 border border-white/10 shadow-xl;
+  }
+  
+  .glass-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(189, 0, 255, 0.15); /* Purple subtle border */
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+
+  .neon-text {
+    text-shadow: 0 0 10px rgba(189, 0, 255, 0.5);
+  }
+
+  .input-field {
+    @apply w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[color:var(--accent-purple)] focus:ring-1 focus:ring-[color:var(--accent-purple)] transition-all;
+  }
+  
+  .btn-primary {
+    @apply bg-[color:var(--accent-purple)] text-white font-bold py-3 px-6 rounded-xl shadow-[0_0_15px_rgba(189,0,255,0.4)] hover:shadow-[0_0_25px_rgba(189,0,255,0.6)] active:scale-95 transition-all;
+  }
+}
+
+/* Custom scrollbar for webkit */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
