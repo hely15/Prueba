@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 
 const Dashboard = () => {
     const { balance, income, expense, transactions } = useFinance();
+    const user = JSON.parse(localStorage.getItem('user'));
 
     const formatMoney = (amount) => {
         return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount);
@@ -13,7 +14,7 @@ const Dashboard = () => {
         <div className="space-y-6 animate-fade-in">
             <header className="flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-200">Hola, Santiago</h1>
+                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-200">Hola, {user.name}</h1>
                     <p className="text-sm text-gray-400">Resumen Financiero</p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center border border-white/20">

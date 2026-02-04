@@ -95,8 +95,8 @@ const Transactions = () => {
 
             {/* Add Transaction Overlay (Glass Sheet) */}
             {showAddForm && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in slide-in-from-bottom-10 duration-300">
-                    <div className="w-full max-w-md bg-[#160d2b] border border-white/10 rounded-3xl p-6 relative shadow-2xl">
+                <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in slide-in-from-bottom-10 duration-300">
+                    <div className="w-full max-w-md bg-[#160d2b] border border-white/10 rounded-3xl p-6 pb-10 relative shadow-2xl safe-area-bottom">
                         <button
                             onClick={() => setShowAddForm(false)}
                             className="absolute top-4 right-4 text-gray-400 hover:text-white"

@@ -99,7 +99,7 @@ const Goals = () => {
 
             {/* Add Goal Modal */}
             {showAddForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
                     <div className="glass-panel w-full max-w-sm rounded-3xl p-6 relative border border-white/20">
                         <button
                             onClick={() => setShowAddForm(false)}
@@ -139,7 +139,7 @@ const Goals = () => {
 
             {/* Add Funds Modal */}
             {selectedGoalId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
                     <div className="glass-panel w-full max-w-sm rounded-3xl p-6 relative border border-white/20">
                         <button
                             onClick={() => setSelectedGoalId(null)}
