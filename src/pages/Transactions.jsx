@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { TrendingUp, TrendingDown, Plus, X, Trash2, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
@@ -94,9 +95,9 @@ const Transactions = () => {
             </div>
 
             {/* Add Transaction Overlay (Glass Sheet) */}
-            {showAddForm && (
+            {showAddForm && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in slide-in-from-bottom-10 duration-300">
-                    <div className="w-full max-w-md bg-[#160d2b] border border-white/10 rounded-3xl p-6 pb-10 relative shadow-2xl safe-area-bottom">
+                    <div className="w-full max-w-md bg-[#160d2b] border border-white/10 rounded-3xl p-6 pb-24 sm:pb-6 relative shadow-2xl safe-area-bottom overflow-y-auto max-h-[85vh]">
                         <button
                             onClick={() => setShowAddForm(false)}
                             className="absolute top-4 right-4 text-gray-400 hover:text-white"
@@ -169,7 +170,8 @@ const Transactions = () => {
                             </button>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { Target, Plus, X, Trophy } from 'lucide-react';
 
@@ -98,9 +99,9 @@ const Goals = () => {
             </div>
 
             {/* Add Goal Modal */}
-            {showAddForm && (
+            {showAddForm && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
-                    <div className="glass-panel w-full max-w-sm rounded-3xl p-6 relative border border-white/20">
+                    <div className="glass-panel w-full max-w-sm rounded-3xl p-6 pb-24 sm:pb-6 relative border border-white/20">
                         <button
                             onClick={() => setShowAddForm(false)}
                             className="absolute top-4 right-4 text-gray-400 hover:text-white"
@@ -134,13 +135,14 @@ const Goals = () => {
                             <button type="submit" className="btn-primary w-full mt-2">Crear Meta</button>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Add Funds Modal */}
-            {selectedGoalId && (
+            {selectedGoalId && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
-                    <div className="glass-panel w-full max-w-sm rounded-3xl p-6 relative border border-white/20">
+                    <div className="glass-panel w-full max-w-sm rounded-3xl p-6 pb-24 sm:pb-6 relative border border-white/20">
                         <button
                             onClick={() => setSelectedGoalId(null)}
                             className="absolute top-4 right-4 text-gray-400 hover:text-white"
@@ -164,7 +166,8 @@ const Goals = () => {
                             <button type="submit" className="btn-primary w-full mt-2">Abonar</button>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
