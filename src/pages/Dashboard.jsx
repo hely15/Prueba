@@ -14,7 +14,7 @@ const Dashboard = () => {
         <div className="space-y-6 animate-fade-in">
             <header className="flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-200">Hola, {user.name}</h1>
+                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-200">Hola, {user?.name || 'Usuario'}</h1>
                     <p className="text-sm text-gray-400">Resumen Financiero</p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center border border-white/20">
