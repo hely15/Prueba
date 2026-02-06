@@ -1,6 +1,7 @@
 import React from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, BarChart3 } from 'lucide-react';
+import MonthlyChart from '../components/MonthlyChart';
 
 const Dashboard = () => {
     const { balance, income, expense, transactions } = useFinance();
@@ -50,6 +51,15 @@ const Dashboard = () => {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Analytics Section */}
+            <div className="glass-panel p-5 rounded-2xl">
+                <div className="flex items-center gap-2 mb-2">
+                    <BarChart3 size={18} className="text-[color:var(--accent-purple)]" />
+                    <h3 className="text-white font-semibold">Análisis Mensual</h3>
+                </div>
+                <MonthlyChart transactions={transactions} />
             </div>
 
             {/* Recent Transactions Preview */}

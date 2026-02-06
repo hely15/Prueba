@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { TrendingUp, TrendingDown, Plus, X, Trash2, Calendar } from 'lucide-react';
@@ -12,11 +13,27 @@ const CATEGORIES = {
 
 const Transactions = () => {
     const { transactions, addTransaction, deleteTransaction } = useFinance();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [showAddForm, setShowAddForm] = useState(false);
     const [type, setType] = useState('expense');
     const [amount, setAmount] = useState('');
     const [category, setCategory] = useState(CATEGORIES.expense[0]);
     const [description, setDescription] = useState('');
+
+    useEffect(() => {
+        const action = searchParams.get('action');
+        if (action === 'add-expense') {
+            setType('expense');
+            setCategory(CATEGORIES.expense[0]);
+            setShowAddForm(true);
+            setSearchParams({}, { replace: true });
+        } else if (action === 'add-income') {
+            setType('income');
+            setCategory(CATEGORIES.income[0]);
+            setShowAddForm(true);
+            setSearchParams({}, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
