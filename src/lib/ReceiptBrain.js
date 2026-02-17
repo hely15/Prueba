@@ -17,7 +17,7 @@ class ReceiptBrain {
             hasTotalKeyword: 60,
             hasArticlesKeyword: 40,
             isCurrencyFormat: 20,
-            isLargestNumber: 25,
+            isLargestNumber: 50, // BOOSTED: User wants strict priority on largest value
             isBottomHalf: 15,
             hasNegativeKeywords: -200,
             isBlackLine: 30
@@ -96,7 +96,10 @@ class ReceiptBrain {
 
             // Adjust Global Weights based on features of the correct line
             if (line.includes('total')) this.weights.hasTotalKeyword += 1;
-            if (this.extractNumbers(line).includes(correctAmount) && Math.max(...this.extractNumbers(fullText)) === correctAmount) {
+
+            // Check if it was the largest number in the whole text
+            const allNumbers = this.extractNumbers(fullText);
+            if (this.extractNumbers(line).includes(correctAmount) && Math.max(...allNumbers) === correctAmount) {
                 this.weights.isLargestNumber += 1; // It was indeed the largest
             }
         });
@@ -117,12 +120,19 @@ class ReceiptBrain {
         let candidates = [];
         let globalMax = 0;
 
-        // 1. First Pass: Extraction
-        lines.forEach((line, index) => {
+        // 1. First Pass: Extraction & Global Max Calculation
+        // We only consider numbers that pass strict extraction as candidates for "Max"
+        lines.forEach((line) => {
             const numbers = this.extractNumbers(line);
             numbers.forEach(num => {
                 if (num > globalMax && num < 100000000) globalMax = num;
+            });
+        });
 
+        // 2. Second Pass: Candidate Creation
+        lines.forEach((line, index) => {
+            const numbers = this.extractNumbers(line);
+            numbers.forEach(num => {
                 candidates.push({
                     value: num,
                     lineText: line,
@@ -135,7 +145,7 @@ class ReceiptBrain {
 
         if (candidates.length === 0) return null;
 
-        // 2. Second Pass: Neural Scoring
+        // 3. Third Pass: Neural Scoring
         candidates = candidates.map(candidate => {
             let score = 0;
             const text = candidate.normalizedLine;
@@ -153,9 +163,12 @@ class ReceiptBrain {
             if (candidate.lineText.includes('$') || /[\d]{1,3}[.,][\d]{3}/.test(candidate.lineText)) {
                 score += this.weights.isCurrencyFormat;
             }
+
+            // Critical: If it is the largest detected number, give massive boost
             if (candidate.value === globalMax) {
                 score += this.weights.isLargestNumber;
             }
+
             const relativePosition = candidate.lineIndex / lines.length;
             if (relativePosition > 0.5) {
                 score += this.weights.isBottomHalf;
@@ -167,12 +180,11 @@ class ReceiptBrain {
                 }
             }
 
-            // learned Pattern Boost
-            // Check if any word in this line is a learned "good" word
+            // Learned Pattern Boost
             const words = text.split(/[\s\d$.,:;-]+/).filter(w => w.length > 3);
             words.forEach(word => {
                 if (this.learnedPatterns[word]) {
-                    score += this.learnedPatterns[word]; // Add learned weight
+                    score += this.learnedPatterns[word];
                 }
             });
 
@@ -184,13 +196,9 @@ class ReceiptBrain {
             return { ...candidate, score };
         });
 
-        // 3. Activation
+        // 4. Activation
         candidates.sort((a, b) => b.score - a.score);
         const winner = candidates[0];
-
-        // Confidence Threshold for Auto-Scan
-        // If the score is very high (> 80), we can be confident.
-        // If it's low, maybe don't auto-capture fully or verify.
 
         console.log("Brain Analysis Top:", winner);
 
@@ -200,13 +208,8 @@ class ReceiptBrain {
     }
 
     /**
-     * Extract numbers from a string, handling formatting (1.000 vs 1,000)
-     * "Cambia que si es una coma va a ser igual que un punto se toma como miles o lo que sea"
-     * 
-     * Strategy:
-     * 1. Check for trailing decimals like ",00" or ".00" and remove them (to avoid 10.000,00 becoming 1.000.000).
-     * 2. Treat ALL remaining dots and commas as thousands separators (i.e., remove them).
-     * 3. Convert to integer.
+     * Extract numbers from a string, handling formatting.
+     * STRICT MODE: Must contain '.' or ',' to be considered a price.
      */
     extractNumbers(text) {
         // Match likely number patterns: digits, dots, commas
@@ -214,22 +217,26 @@ class ReceiptBrain {
         if (!matches) return [];
 
         return matches.map(raw => {
+            // STRICT RULE: If it doesn't have a dot or comma, it's not a price (e.g. invalid)
+            // User requirement: "si no tiene ninguna de estas dos no es l valor total"
+            if (!raw.includes('.') && !raw.includes(',')) {
+                return null;
+            }
+
             // Heuristic for trailing zeros (cents)
             // If it ends in ,00 or .00, strip it first.
-            // Example: 50.000,00 -> 50.000
             let clean = raw;
             if (clean.endsWith(',00') || clean.endsWith('.00')) {
                 clean = clean.slice(0, -3);
             }
 
             // Remove ALL non-digits (treats . and , as thousands separators)
-            // Example: 50.000 -> 50000
-            // Example: 50,000 -> 50000
             clean = clean.replace(/[^\d]/g, '');
 
             const val = parseFloat(clean);
             return isNaN(val) ? 0 : val;
-        }).filter(v => v > 0);
+        })
+            .filter(v => v !== null && v > 0); // Filter out nulls (failed strict check) and zeros
     }
 
     /**
