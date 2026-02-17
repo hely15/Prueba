@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Tesseract from 'tesseract.js';
 import { Camera, Upload, Loader2, X, Check } from 'lucide-react';
+import { receiptBrain } from '../lib/ReceiptBrain';
 
 const ReceiptScanner = ({ onScanComplete, onClose }) => {
     const [scanning, setScanning] = useState(false);
@@ -88,7 +89,8 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
 
             const text = result.data.text;
             console.log("Scanned text:", text);
-            const amount = extractAmount(text);
+            // Use ReceiptBrain to analyze the text
+            const amount = receiptBrain.analyze(text);
 
             if (amount) {
                 onScanComplete(amount);
@@ -104,52 +106,6 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
         }
     };
 
-    const extractAmount = (text) => {
-        // Cleaning and sanitizing lines
-        const lines = text.split('\n').map(line => line.trim().toLowerCase());
-
-        let foundAmount = null;
-
-        // Keywords that usually precede the total amount
-        const totalKeywords = ['total', 'pagar', 'suma', 'neto', 'venta', 'importe'];
-
-        // Regex to find currency amounts
-        // Looking for patterns like: $ 50.000, 50.000, 12,345.67
-        // We need to be careful with dots and commas as they vary by region.
-        // In this context (Latam/Colombia), usually dots are thousands, inputs expect raw numbers.
-
-        for (let line of lines) {
-            // specific logic to find the line with "Total"
-            const hasKeyword = totalKeywords.some(keyword => line.includes(keyword));
-
-            if (hasKeyword) {
-                // Try to extract the number from this line
-                const numbers = line.match(/[\d,.]+/g);
-                if (numbers) {
-                    // Get the last number in the line (usually the amount)
-                    const lastNum = numbers[numbers.length - 1];
-
-                    // Clean up: remove non-numeric except dot/comma
-                    // Simplistic assumption: remove all non-digits to get raw integer for COP
-                    // e.g. 50.000 -> 50000
-                    const raw = lastNum.replace(/[^\d]/g, '');
-                    const val = parseFloat(raw);
-
-                    if (!isNaN(val) && val > 0) {
-                        foundAmount = val;
-                        // We found a likely candidate on the Total line
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Return found amount
-        if (foundAmount) return foundAmount;
-
-        return null;
-    };
-
     return (
         <div className="flex flex-col items-center justify-center p-4 bg-white/5 rounded-2xl border border-white/10 mb-4">
 
@@ -157,7 +113,7 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                 <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-white/20 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-colors group">
                     <div className="flex flex-col items-center justify-center pt-2 pb-3">
                         <Camera className="w-8 h-8 text-[color:var(--accent-purple)] mb-1 group-hover:scale-110 transition-transform" />
-                        <p className="text-xs text-gray-400">Escanear Recibo</p>
+                        <p className="text-xs text-gray-400">Escanear Recibo (AI)</p>
                     </div>
                     <input
                         type="file"
