@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Plus, X, Trash2, Calendar, ScanLine } from 'l
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ReceiptScanner from '../components/ReceiptScanner';
+import { receiptBrain } from '../lib/ReceiptBrain';
 
 const CATEGORIES = {
     expense: ['Comida', 'Transporte', 'Vivienda', 'Entretenimiento', 'Salud', 'Servicios', 'Otros'],
@@ -15,43 +16,30 @@ const CATEGORIES = {
 const Transactions = () => {
     const { transactions, addTransaction, deleteTransaction } = useFinance();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [showAddForm, setShowAddForm] = useState(false);
+
+    // UI State
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [scannedTextContext, setScannedTextContext] = useState(null);
+
+    // Form States
     const [type, setType] = useState('expense');
     const [amount, setAmount] = useState('');
     const [category, setCategory] = useState(CATEGORIES.expense[0]);
     const [description, setDescription] = useState('');
-    const [showScanner, setShowScanner] = useState(false);
+    const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
     useEffect(() => {
-        const action = searchParams.get('action');
-        if (action === 'add-expense') {
-            setType('expense');
-            setCategory(CATEGORIES.expense[0]);
-            setShowAddForm(true);
-            setSearchParams({}, { replace: true });
-        } else if (action === 'add-income') {
-            setType('income');
-            setCategory(CATEGORIES.income[0]);
-            setShowAddForm(true);
+        if (searchParams.get('new') === 'true') {
+            setIsModalOpen(true);
             setSearchParams({}, { replace: true });
         }
     }, [searchParams, setSearchParams]);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (!amount) return;
-
-        addTransaction({
-            amount: parseFloat(amount),
-            type,
-            category,
-            description: description || category,
-        });
-
-        setAmount('');
-        setDescription('');
-        setShowAddForm(false);
-        setShowScanner(false);
+    const handleScanComplete = (scannedAmount, rawText) => {
+        setAmount(scannedAmount.toString());
+        setScannedTextContext(rawText);
+        setIsScannerOpen(false);
     };
 
     const handleTypeChange = (newType) => {
@@ -59,9 +47,40 @@ const Transactions = () => {
         setCategory(CATEGORIES[newType][0]);
     };
 
-    const handleScanComplete = (scannedAmount) => {
-        setAmount(scannedAmount.toString());
-        setShowScanner(false);
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setAmount('');
+        // Reset category to default for current type or keep? 
+        // Let's keep it simple.
+        setDescription('');
+        setDate(format(new Date(), 'yyyy-MM-dd'));
+        setIsScannerOpen(false);
+        setScannedTextContext(null);
+    };
+
+    const handleSaveTransaction = (e) => {
+        e.preventDefault();
+        if (!amount || !category) return;
+
+        const val = parseFloat(amount);
+
+        // AI Training Step
+        if (scannedTextContext) {
+            receiptBrain.train(scannedTextContext, val);
+            setScannedTextContext(null);
+        }
+
+        const newTransaction = {
+            id: Date.now(),
+            type,
+            amount: val,
+            category,
+            description: description || category, // Default description to category if empty
+            date
+        };
+
+        addTransaction(newTransaction);
+        closeModal();
     };
 
     const formatMoney = (amount) => {
@@ -73,7 +92,7 @@ const Transactions = () => {
             <header className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-white">Movimientos</h1>
                 <button
-                    onClick={() => setShowAddForm(true)}
+                    onClick={() => setIsModalOpen(true)}
                     className="w-10 h-10 rounded-full bg-[color:var(--accent-purple)] flex items-center justify-center shadow-[0_0_15px_rgba(189,0,255,0.5)] hover:bg-purple-600 transition-colors"
                 >
                     <Plus size={24} color="white" />
@@ -120,14 +139,11 @@ const Transactions = () => {
             </div>
 
             {/* Add Transaction Overlay (Glass Sheet) */}
-            {showAddForm && createPortal(
+            {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in slide-in-from-bottom-10 duration-300">
                     <div className="w-full max-w-md bg-[#160d2b] border border-white/10 rounded-3xl p-6 pb-24 sm:pb-6 relative shadow-2xl safe-area-bottom overflow-y-auto max-h-[90vh]">
                         <button
-                            onClick={() => {
-                                setShowAddForm(false);
-                                setShowScanner(false);
-                            }}
+                            onClick={closeModal}
                             className="absolute top-4 right-4 text-gray-400 hover:text-white z-20"
                         >
                             <X size={24} />
@@ -159,19 +175,19 @@ const Transactions = () => {
                                 <label className="block text-xs text-gray-400">Monto</label>
                                 <button
                                     type="button"
-                                    onClick={() => setShowScanner(!showScanner)}
+                                    onClick={() => setIsScannerOpen(!isScannerOpen)}
                                     className="flex items-center gap-1 text-[color:var(--accent-purple)] text-xs hover:text-white transition-colors"
                                 >
                                     <ScanLine size={14} />
-                                    {showScanner ? 'Ocultar Escaner' : 'Escanear Factura'}
+                                    {isScannerOpen ? 'Ocultar Escaner' : 'Escanear Factura'}
                                 </button>
                             </div>
 
-                            {showScanner && (
-                                <ReceiptScanner onScanComplete={handleScanComplete} onClose={() => setShowScanner(false)} />
+                            {isScannerOpen && (
+                                <ReceiptScanner onScanComplete={handleScanComplete} onClose={() => setIsScannerOpen(false)} />
                             )}
 
-                            <form onSubmit={handleSubmit} className="space-y-5">
+                            <form onSubmit={handleSaveTransaction} className="space-y-5">
                                 <div>
                                     <input
                                         type="number"
