@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Tesseract from 'tesseract.js';
 import { Camera, Upload, Loader2, X, Check } from 'lucide-react';
 
@@ -11,18 +11,68 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            const imageUrl = URL.createObjectURL(file);
-            setImage(imageUrl);
+            // Create a preview immediately
+            const objectUrl = URL.createObjectURL(file);
+            setImage(objectUrl);
             setError(null);
-            processImage(imageUrl);
+
+            // Start optimization and processing
+            optimizeAndProcessImage(file);
         }
     };
 
-    const processImage = async (imageUrl) => {
+    const optimizeAndProcessImage = (file) => {
         setScanning(true);
         setProgress(0);
         setError(null);
 
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Calculate new dimensions (max width 800px)
+            const MAX_WIDTH = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Draw image on canvas (this resizes it)
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Convert to grayscale for better OCR accuracy (optional but recommended)
+            const fullImageData = ctx.getImageData(0, 0, width, height);
+            const data = fullImageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                data[i] = avg;     // red
+                data[i + 1] = avg; // green
+                data[i + 2] = avg; // blue
+            }
+            ctx.putImageData(fullImageData, 0, 0);
+
+            // Get processed image as data URL or Blob
+            // Tesseract accepts the canvas element directly or a data URL
+            const processedImageUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+            // Start OCR
+            processImage(processedImageUrl);
+        };
+        img.onerror = () => {
+            setError("Error al procesar la imagen.");
+            setScanning(false);
+        };
+        img.src = URL.createObjectURL(file);
+    };
+
+    const processImage = async (imageUrl) => {
         try {
             const result = await Tesseract.recognize(
                 imageUrl,
