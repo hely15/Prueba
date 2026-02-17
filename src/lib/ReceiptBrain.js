@@ -216,8 +216,65 @@ class ReceiptBrain {
         }).filter(v => v > 0);
     }
 
+    /**
+     * Check if text contains any of the keywords using Fuzzy Logic (Levenshtein)
+     * Allows for small typos (e.g. "To1al" instead of "Total")
+     */
     hasKeyword(text, keywords) {
-        return keywords.some(k => text.includes(k));
+        // 1. Fast path: exact match
+        if (keywords.some(k => text.includes(k))) return true;
+
+        // 2. Fuzzy path: Check words against keywords
+        const words = text.split(/[\s,.:;]+/);
+
+        for (const word of words) {
+            if (word.length < 4) continue; // Skip short words to avoid false positives
+
+            for (const keyword of keywords) {
+                // Only fuzzy match if lengths are similar
+                if (Math.abs(word.length - keyword.length) > 2) continue;
+
+                const dist = this.levenshtein(word, keyword);
+                // Allow 1 error for short words, 2 for longer
+                const maxEdits = keyword.length > 5 ? 2 : 1;
+
+                if (dist <= maxEdits) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Calculate Levenshtein Distance between two strings
+     */
+    levenshtein(a, b) {
+        const matrix = [];
+
+        for (let i = 0; i <= b.length; i++) {
+            matrix[i] = [i];
+        }
+
+        for (let j = 0; j <= a.length; j++) {
+            matrix[0][j] = j;
+        }
+
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1, // substitution
+                        Math.min(
+                            matrix[i][j - 1] + 1, // insertion
+                            matrix[i - 1][j] + 1 // deletion
+                        )
+                    );
+                }
+            }
+        }
+
+        return matrix[b.length][a.length];
     }
 }
 
