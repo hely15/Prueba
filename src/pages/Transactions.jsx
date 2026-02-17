@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
-import { TrendingUp, TrendingDown, Plus, X, Trash2, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, Plus, X, Trash2, Calendar, ScanLine } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import ReceiptScanner from '../components/ReceiptScanner';
 
 const CATEGORIES = {
     expense: ['Comida', 'Transporte', 'Vivienda', 'Entretenimiento', 'Salud', 'Servicios', 'Otros'],
@@ -19,6 +20,7 @@ const Transactions = () => {
     const [amount, setAmount] = useState('');
     const [category, setCategory] = useState(CATEGORIES.expense[0]);
     const [description, setDescription] = useState('');
+    const [showScanner, setShowScanner] = useState(false);
 
     useEffect(() => {
         const action = searchParams.get('action');
@@ -49,11 +51,17 @@ const Transactions = () => {
         setAmount('');
         setDescription('');
         setShowAddForm(false);
+        setShowScanner(false);
     };
 
     const handleTypeChange = (newType) => {
         setType(newType);
         setCategory(CATEGORIES[newType][0]);
+    };
+
+    const handleScanComplete = (scannedAmount) => {
+        setAmount(scannedAmount.toString());
+        setShowScanner(false);
     };
 
     const formatMoney = (amount) => {
@@ -114,17 +122,20 @@ const Transactions = () => {
             {/* Add Transaction Overlay (Glass Sheet) */}
             {showAddForm && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in slide-in-from-bottom-10 duration-300">
-                    <div className="w-full max-w-md bg-[#160d2b] border border-white/10 rounded-3xl p-6 pb-24 sm:pb-6 relative shadow-2xl safe-area-bottom overflow-y-auto max-h-[85vh]">
+                    <div className="w-full max-w-md bg-[#160d2b] border border-white/10 rounded-3xl p-6 pb-24 sm:pb-6 relative shadow-2xl safe-area-bottom overflow-y-auto max-h-[90vh]">
                         <button
-                            onClick={() => setShowAddForm(false)}
-                            className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                            onClick={() => {
+                                setShowAddForm(false);
+                                setShowScanner(false);
+                            }}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-white z-20"
                         >
                             <X size={24} />
                         </button>
 
                         <h2 className="text-xl font-bold text-white mb-6">Nuevo Movimiento</h2>
 
-                        <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="space-y-5">
                             {/* Type Toggle */}
                             <div className="flex p-1 bg-white/5 rounded-xl">
                                 <button
@@ -143,49 +154,67 @@ const Transactions = () => {
                                 </button>
                             </div>
 
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-2">Monto</label>
-                                <input
-                                    type="number"
-                                    className="input-field text-2xl font-bold"
-                                    placeholder="0"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    required
-                                />
+                            {/* Scanner Section - Only for Expenses usually, but let's allow both */}
+                            <div className="flex justify-between items-center">
+                                <label className="block text-xs text-gray-400">Monto</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowScanner(!showScanner)}
+                                    className="flex items-center gap-1 text-[color:var(--accent-purple)] text-xs hover:text-white transition-colors"
+                                >
+                                    <ScanLine size={14} />
+                                    {showScanner ? 'Ocultar Escaner' : 'Escanear Factura'}
+                                </button>
                             </div>
 
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-2">Categoría</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {CATEGORIES[type].map(cat => (
-                                        <button
-                                            key={cat}
-                                            type="button"
-                                            onClick={() => setCategory(cat)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${category === cat ? 'bg-white/20 border-white/40 text-white' : 'border-white/10 text-gray-400'}`}
-                                        >
-                                            {cat}
-                                        </button>
-                                    ))}
+                            {showScanner && (
+                                <ReceiptScanner onScanComplete={handleScanComplete} onClose={() => setShowScanner(false)} />
+                            )}
+
+                            <form onSubmit={handleSubmit} className="space-y-5">
+                                <div>
+                                    <input
+                                        type="number"
+                                        className="input-field text-2xl font-bold"
+                                        placeholder="0"
+                                        value={amount}
+                                        onChange={(e) => setAmount(e.target.value)}
+                                        required
+                                    />
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-2">Descripción (Opcional)</label>
-                                <input
-                                    type="text"
-                                    className="input-field"
-                                    placeholder="¿En qué gastaste?"
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                />
-                            </div>
+                                <div>
+                                    <label className="block text-xs text-gray-400 mb-2">Categoría</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {CATEGORIES[type].map(cat => (
+                                            <button
+                                                key={cat}
+                                                type="button"
+                                                onClick={() => setCategory(cat)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${category === cat ? 'bg-white/20 border-white/40 text-white' : 'border-white/10 text-gray-400'}`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
 
-                            <button type="submit" className="btn-primary w-full mt-4">
-                                Guardar
-                            </button>
-                        </form>
+                                <div>
+                                    <label className="block text-xs text-gray-400 mb-2">Descripción (Opcional)</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        placeholder="¿En qué gastaste?"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                    />
+                                </div>
+
+                                <button type="submit" className="btn-primary w-full mt-4">
+                                    Guardar
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>,
                 document.body
