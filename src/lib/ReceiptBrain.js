@@ -201,16 +201,32 @@ class ReceiptBrain {
 
     /**
      * Extract numbers from a string, handling formatting (1.000 vs 1,000)
+     * "Cambia que si es una coma va a ser igual que un punto se toma como miles o lo que sea"
+     * 
+     * Strategy:
+     * 1. Check for trailing decimals like ",00" or ".00" and remove them (to avoid 10.000,00 becoming 1.000.000).
+     * 2. Treat ALL remaining dots and commas as thousands separators (i.e., remove them).
+     * 3. Convert to integer.
      */
     extractNumbers(text) {
-        // Match sequences of digits, dots, commas
+        // Match likely number patterns: digits, dots, commas
         const matches = text.match(/[\d,.]+/g);
         if (!matches) return [];
 
         return matches.map(raw => {
-            // Cleanup: remove all non-digits.
-            // In Colombia/files provided, 50.000 usually means 50000.
-            const clean = raw.replace(/[^\d]/g, '');
+            // Heuristic for trailing zeros (cents)
+            // If it ends in ,00 or .00, strip it first.
+            // Example: 50.000,00 -> 50.000
+            let clean = raw;
+            if (clean.endsWith(',00') || clean.endsWith('.00')) {
+                clean = clean.slice(0, -3);
+            }
+
+            // Remove ALL non-digits (treats . and , as thousands separators)
+            // Example: 50.000 -> 50000
+            // Example: 50,000 -> 50000
+            clean = clean.replace(/[^\d]/g, '');
+
             const val = parseFloat(clean);
             return isNaN(val) ? 0 : val;
         }).filter(v => v > 0);
