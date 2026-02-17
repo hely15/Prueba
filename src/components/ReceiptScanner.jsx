@@ -1,28 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Tesseract from 'tesseract.js';
-import { Camera, Upload, Loader2, X, Check } from 'lucide-react';
+import { Camera, Upload, Loader2, X, Check, RefreshCw } from 'lucide-react';
 import { receiptBrain } from '../lib/ReceiptBrain';
 
 const ReceiptScanner = ({ onScanComplete, onClose }) => {
     const [scanning, setScanning] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [image, setImage] = useState(null);
     const [error, setError] = useState(null);
+    const [isCameraActive, setIsCameraActive] = useState(false);
 
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            // Create a preview immediately
-            const objectUrl = URL.createObjectURL(file);
-            setImage(objectUrl);
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+
+    // Initialize Camera
+    const startCamera = async () => {
+        try {
             setError(null);
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'environment', // Back camera
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
+            });
 
-            // Start optimization and processing
-            optimizeAndProcessImage(file);
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setIsCameraActive(true);
+            }
+        } catch (err) {
+            console.error("Camera Error:", err);
+            setError("No se pudo acceder a la cámara. Asegúrate de dar permisos.");
         }
     };
 
-    const optimizeAndProcessImage = (file) => {
+    const stopCamera = () => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            const tracks = videoRef.current.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+            setIsCameraActive(false);
+        }
+    };
+
+    useEffect(() => {
+        // Start camera on mount
+        startCamera();
+        return () => stopCamera();
+    }, []);
+
+    const captureAndProcess = () => {
+        if (!videoRef.current) return;
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas to video dimensions
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        // Draw current frame
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        stopCamera(); // Stop query stream to save battery/resources
+
+        // Prepare for processing
+        const imageUrl = canvas.toDataURL('image/jpeg', 0.9);
+        optimizeAndProcessImage(imageUrl);
+    };
+
+    const optimizeAndProcessImage = (inputUrl) => {
         setScanning(true);
         setProgress(0);
         setError(null);
@@ -32,7 +80,7 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
-            // Calculate new dimensions (max width 800px)
+            // Calculate new dimensions (max width 800px for speed)
             const MAX_WIDTH = 800;
             let width = img.width;
             let height = img.height;
@@ -48,7 +96,7 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             // Draw image on canvas (this resizes it)
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Convert to grayscale for better OCR accuracy (optional but recommended)
+            // Grayscale conversion
             const fullImageData = ctx.getImageData(0, 0, width, height);
             const data = fullImageData.data;
             for (let i = 0; i < data.length; i += 4) {
@@ -59,25 +107,17 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             }
             ctx.putImageData(fullImageData, 0, 0);
 
-            // Get processed image as data URL or Blob
-            // Tesseract accepts the canvas element directly or a data URL
             const processedImageUrl = canvas.toDataURL('image/jpeg', 0.8);
-
-            // Start OCR
             processImage(processedImageUrl);
         };
-        img.onerror = () => {
-            setError("Error al procesar la imagen.");
-            setScanning(false);
-        };
-        img.src = URL.createObjectURL(file);
+        img.src = inputUrl;
     };
 
     const processImage = async (imageUrl) => {
         try {
             const result = await Tesseract.recognize(
                 imageUrl,
-                'spa', // Spanish language for better accuracy with local receipts
+                'spa',
                 {
                     logger: m => {
                         if (m.status === 'recognizing text') {
@@ -89,88 +129,97 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
 
             const text = result.data.text;
             console.log("Scanned text:", text);
-            // Use ReceiptBrain to analyze the text
+
             const amount = receiptBrain.analyze(text);
 
             if (amount) {
                 onScanComplete(amount);
             } else {
-                setError("No se pudo detectar un monto total claro. Intenta ingresar el valor manualmente.");
+                setError("No encontré un total claro. Intenta acercar más el 'Total'.");
+                setIsCameraActive(false); // Enable retry UI
             }
 
         } catch (err) {
             console.error("OCR Error:", err);
-            setError("Ocurrió un error al escanear la imagen.");
+            setError("Error al procesar. Intenta nuevamente.");
         } finally {
             setScanning(false);
         }
     };
 
-    return (
-        <div className="flex flex-col items-center justify-center p-4 bg-white/5 rounded-2xl border border-white/10 mb-4">
+    const handleRetry = () => {
+        setError(null);
+        startCamera();
+    };
 
-            {!image && (
-                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-white/20 border-dashed rounded-xl cursor-pointer hover:bg-white/5 transition-colors group">
-                    <div className="flex flex-col items-center justify-center pt-2 pb-3">
-                        <Camera className="w-8 h-8 text-[color:var(--accent-purple)] mb-1 group-hover:scale-110 transition-transform" />
-                        <p className="text-xs text-gray-400">Escanear Recibo (AI)</p>
+    return (
+        <div className="flex flex-col items-center justify-center p-0 bg-black rounded-2xl overflow-hidden relative mb-4 h-[400px] w-full border border-white/20">
+
+            {/* Live Camera View */}
+            {isCameraActive && !scanning && (
+                <>
+                    <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+
+                    {/* Overlay Guide */}
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+                        <div className="w-[80%] h-[150px] border-2 border-[color:var(--accent-purple)] rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative">
+                            <p className="absolute -top-8 left-0 right-0 text-center text-white font-medium text-sm drop-shadow-md bg-black/50 py-1 rounded">
+                                Centra el TOTAL aquí
+                            </p>
+                        </div>
                     </div>
-                    <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleImageChange}
-                    />
-                </label>
+
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
+                        <button
+                            onClick={captureAndProcess}
+                            className="bg-white rounded-full p-4 shadow-lg hover:scale-105 transition-transform active:scale-95"
+                        >
+                            <div className="w-6 h-6 rounded-full border-2 border-black"></div>
+                        </button>
+                    </div>
+                </>
             )}
 
-            {image && (
-                <div className="w-full space-y-3">
-                    <div className="relative w-full h-32 rounded-xl overflow-hidden bg-black/40">
-                        <img src={image} alt="Preview" className={`w-full h-full object-contain ${scanning ? 'opacity-50 blur-sm' : ''}`} />
+            {/* Hidden Canvas for processing */}
+            <canvas ref={canvasRef} className="hidden" />
 
-                        {scanning && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-                                <Loader2 className="w-8 h-8 text-[color:var(--accent-purple)] animate-spin mb-2" />
-                                <span className="text-xs font-bold text-white bg-black/50 px-2 py-1 rounded">
-                                    Procesando... {progress}%
-                                </span>
-                            </div>
-                        )}
-
-                        {error && !scanning && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-2 text-center">
-                                <X className="w-6 h-6 text-red-500 mb-1" />
-                                <p className="text-xs text-red-300 leading-tight">{error}</p>
-                                <button
-                                    onClick={() => setImage(null)}
-                                    className="mt-2 text-[10px] bg-white/10 px-2 py-1 rounded text-white hover:bg-white/20"
-                                >
-                                    Reintentar
-                                </button>
-                            </div>
-                        )}
-
-                        {!error && !scanning && (
-                            <div className="absolute top-2 right-2">
-                                <div className="bg-green-500 rounded-full p-1 shadow-lg">
-                                    <Check className="w-4 h-4 text-white" />
-                                </div>
-                            </div>
-                        )}
+            {/* Scanning State */}
+            {scanning && (
+                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20">
+                    <Loader2 className="w-10 h-10 text-[color:var(--accent-purple)] animate-spin mb-4" />
+                    <p className="text-white font-medium mb-2">Analizando Neuronas...</p>
+                    <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-[color:var(--accent-purple)] transition-all duration-300" style={{ width: `${progress}%` }}></div>
                     </div>
-
-                    {!scanning && (
-                        <button
-                            onClick={() => setImage(null)}
-                            className="w-full py-2 text-xs text-gray-400 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition-colors"
-                        >
-                            Usar otra imagen
-                        </button>
-                    )}
                 </div>
             )}
+
+            {/* Error State */}
+            {error && !scanning && (
+                <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 text-center z-20">
+                    <p className="text-red-400 mb-4">{error}</p>
+                    <button
+                        onClick={handleRetry}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+                    >
+                        <RefreshCw className="w-4 h-4" /> Intentar de nuevo
+                    </button>
+                </div>
+            )}
+
+            {/* Fallback / Initial State if camera fails or permissions denied */}
+            {!isCameraActive && !scanning && !error && (
+                <div className="text-center p-6">
+                    <p className="text-gray-400 mb-4">La cámara no está activa</p>
+                    <button
+                        onClick={startCamera}
+                        className="px-4 py-2 bg-[color:var(--accent-purple)] text-white rounded-lg hover:bg-white/20 transition-colors"
+                    >
+                        Activar Cámara
+                    </button>
+                </div>
+            )}
+
         </div>
     );
 };

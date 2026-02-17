@@ -11,11 +11,13 @@ class ReceiptBrain {
     constructor() {
         // "Synaptic Weights" - Trained values that determine importance
         this.weights = {
-            hasTotalKeyword: 50,    // High confidence if line says "Total"
+            hasTotalKeyword: 60,    // Increased confidence for explicit "Total"
+            hasArticlesKeyword: 40, // "Articulos" (items) usually implies a sum nearby
             isCurrencyFormat: 20,   // Looks like money ($50.000)
-            isLargestNumber: 30,    // Usually the total is the biggest number
-            isBottomHalf: 10,       // Totals are usually at the bottom
-            hasNegativeKeywords: -100 // "Subtotal", "Cambio", "Efectivo" might be misleading
+            isLargestNumber: 25,    // Usually the total is the biggest number
+            isBottomHalf: 15,       // Totals are usually at the bottom
+            hasNegativeKeywords: -200, // HEAVY penalty for taxes (IVA, Impoconsumo)
+            isBlackLine: 30         // Simulating "underlined in black" (we can't see color but we can look for "====" or "____" lines nearby)
         };
     }
 
@@ -56,16 +58,25 @@ class ReceiptBrain {
         // 3. Neural Evaluation (Scoring)
         candidates = candidates.map(candidate => {
             let score = 0;
+            const text = candidate.normalizedLine;
 
-            // Feature 1: Keyword Proximity
-            if (this.hasKeyword(candidate.normalizedLine, ['total', 'pagar', 'suma', 'neto', 'venta', 'importe'])) {
+            // Feature 1: Keyword Proximity (Positive)
+            if (this.hasKeyword(text, ['total', 'pagar', 'suma', 'neto', 'venta', 'importe', 'monto'])) {
                 score += this.weights.hasTotalKeyword;
             }
 
-            // Feature 2: Negative Keywords (Inhibition)
-            // "Subtotal" is often close to Total but is NOT the total.
-            // "Cambio" (Change) or "Efectivo" (Cash) are also distractions.
-            if (this.hasKeyword(candidate.normalizedLine, ['subtotal', 'sub-total', 'cambio', 'vuelto', 'efectivo', 'recibido'])) {
+            // Feature 1b: "Articulos" support
+            if (this.hasKeyword(text, ['articulos', 'items', 'productos'])) {
+                score += this.weights.hasArticlesKeyword;
+            }
+
+            // Feature 2: Negative Keywords (Inhibition) - CRITICAL UPDATE
+            // Explicitly avoid taxes, change, cash given, subtotal
+            if (this.hasKeyword(text, ['iva', 'impuesto', 'impoconsumo', 'tax', 'subtotal', 'sub-total', 'base', 'cambio', 'vuelto', 'efectivo', 'recibido', 'tarjeta', 'ahorro'])) {
+
+                // Exception: If it says "Total IVA" or "Total Impuestos", it's still bad.
+                // But if it says "Total a Pagar", it's good.
+                // If the line implies it IS a tax, kill the score.
                 score += this.weights.hasNegativeKeywords;
             }
 
@@ -86,6 +97,15 @@ class ReceiptBrain {
                 score += this.weights.isBottomHalf;
             }
 
+            // Feature 6: "Underline" heuristic
+            // If the PREVIOUS line was "=======" or "_______", this line is likely important.
+            if (candidate.lineIndex > 0) {
+                const prevLine = lines[candidate.lineIndex - 1];
+                if (/[-=_]{3,}/.test(prevLine)) {
+                    score += this.weights.isBlackLine;
+                }
+            }
+
             return { ...candidate, score };
         });
 
@@ -95,10 +115,12 @@ class ReceiptBrain {
 
         const winner = candidates[0];
 
-        console.log("ReceiptBrain Analysis:", candidates.slice(0, 3)); // Debug top 3
+        console.log("ReceiptBrain Analysis (Top 3):", candidates.slice(0, 3));
 
-        // Threshold: If score is too low, we might not be sure.
-        // But for now, we'll return the winner if it exists.
+        // If the winner has a very low score (because it was a tax line), we might want to return null.
+        // But the weights are designed so that a "Total" line will almost always outscore a "Tax" line.
+        if (winner.score < -50) return null; // Safety net for when everything is a tax
+
         return winner.value;
     }
 
@@ -111,14 +133,8 @@ class ReceiptBrain {
         if (!matches) return [];
 
         return matches.map(raw => {
-            // Heuristic for Colombia/Latam:
-            // If text contains '$', usually dot is thousands.
-            // Simplified cleanup: remove non-digits.
-            // E.g. "50.000" -> 50000. "12,500.00" -> 1250000 (Risk!)
-
-            // Better heuristic:
-            // Remove all characters that are NOT digits.
-            // Interpret as integer.
+            // Cleanup: remove all non-digits.
+            // In Colombia/files provided, 50.000 usually means 50000.
             const clean = raw.replace(/[^\d]/g, '');
             const val = parseFloat(clean);
             return isNaN(val) ? 0 : val;
